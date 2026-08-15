@@ -13,7 +13,7 @@ export default function Home() {
 
       <div className="z-10 w-full max-w-5xl items-center justify-center font-mono text-sm flex flex-col text-center">
         <div className="mb-6 font-semibold text-primary uppercase tracking-widest text-xs md:text-sm bg-primary/10 px-6 py-2 rounded-full border border-primary/20 shadow-sm">
-          Teknik Informatika | Universitas Darussalam Gontor
+          Typing Master
         </div>
         <h1 className="text-6xl md:text-8xl font-extrabold tracking-tighter text-primary drop-shadow-sm">TYPE RACE</h1>
       </div>
