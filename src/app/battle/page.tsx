@@ -32,28 +32,33 @@ export default function BattleIndexPage() {
     
     if (roomCode.trim().length === 8 && roomCode.includes("-")) {
       setIsLoading(true);
-      const supabase = createClient();
-      const code = roomCode.toUpperCase();
-      
-      const { data, error } = await supabase
-        .from("race_sessions")
-        .select("id, status")
-        .eq("room_code", code)
-        .single();
+      try {
+        const supabase = createClient();
+        const code = roomCode.toUpperCase();
         
-      if (error || !data) {
-        alert("Room not found!");
+        const { data, error } = await supabase
+          .from("race_sessions")
+          .select("id, status")
+          .eq("room_code", code)
+          .single();
+          
+        if (error || !data) {
+          alert("Room not found!");
+          setIsLoading(false);
+          return;
+        }
+        
+        if (data.status !== 'waiting') {
+          alert("Race has already started or finished in this room!");
+          setIsLoading(false);
+          return;
+        }
+        
+        router.push(`/battle/${code}`);
+      } catch (err: any) {
+        alert("System error: " + (err.message || "Could not connect to database. Make sure environment variables are set correctly during Vercel Build."));
         setIsLoading(false);
-        return;
       }
-      
-      if (data.status !== 'waiting') {
-        alert("Race has already started or finished in this room!");
-        setIsLoading(false);
-        return;
-      }
-      
-      router.push(`/battle/${code}`);
     } else {
       alert("Please enter a valid 8-character room code (e.g. ID-ABCDE).");
     }
@@ -63,23 +68,28 @@ export default function BattleIndexPage() {
     if (!playerName) { alert("Please set a nickname first."); return; }
     
     setIsLoading(true);
-    const supabase = createClient();
-    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let randomPart = "";
-    for (let i = 0; i < 5; i++) {
-      randomPart += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    
-    const finalRoomCode = `${language.toUpperCase()}-${randomPart}`;
-    
-    const { error } = await supabase.from("race_sessions").insert({ room_code: finalRoomCode, status: "waiting" });
-    if (error) {
-      alert("Error creating room: " + error.message);
+    try {
+      const supabase = createClient();
+      const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+      let randomPart = "";
+      for (let i = 0; i < 5; i++) {
+        randomPart += characters.charAt(Math.floor(Math.random() * characters.length));
+      }
+      
+      const finalRoomCode = `${language.toUpperCase()}-${randomPart}`;
+      
+      const { error } = await supabase.from("race_sessions").insert({ room_code: finalRoomCode, status: "waiting" });
+      if (error) {
+        alert("Error creating room: " + error.message);
+        setIsLoading(false);
+        return;
+      }
+      
+      router.push(`/battle/${finalRoomCode}`);
+    } catch (err: any) {
+      alert("System error: " + (err.message || "Could not connect to database. Make sure environment variables are set correctly during Vercel Build."));
       setIsLoading(false);
-      return;
     }
-    
-    router.push(`/battle/${finalRoomCode}`);
   };
 
   return (
