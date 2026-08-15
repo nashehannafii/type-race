@@ -2,6 +2,8 @@
 
 import { use, useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import QRCode from "react-qr-code";
 import { TypingEngine } from "@/components/typing/TypingEngine";
 import { useTypingStore } from "@/lib/typing/store";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +18,9 @@ interface PlayerState {
   status: "waiting" | "ready" | "finished";
   progress: number;
   wpm: number;
+  joined_at?: number;
   isHost?: boolean;
+  isSpectator?: boolean;
 }
 
 // Ensure all players in the same room get the same text
@@ -35,10 +39,14 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
   const [phase, setPhase] = useState<"lobby" | "race" | "result">("lobby");
   const [players, setPlayers] = useState<PlayerState[]>([]);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
+  const [joinUrl, setJoinUrl] = useState("");
+  const [nameInput, setNameInput] = useState("");
   
-  const { status, wpm, accuracy, errors, setText, startCountdown, tickCountdown, startRace, reset, input, playerName, startTime, endTime, language, setLanguage } = useTypingStore();
+  const { status, wpm, accuracy, errors, setText, startCountdown, tickCountdown, startRace, reset, input, playerName, setPlayerName, startTime, endTime, language, setLanguage } = useTypingStore();
   const [countdown, setCountdown] = useState(3);
+  const [isSpectator, setIsSpectator] = useState(false);
   const myPlayerStatus = useRef<PlayerState["status"]>("waiting");
+  const router = useRouter();
   
   // Extract room language from prefix (e.g. ID-ABCDE)
   const roomLang = room.includes("-") ? room.split("-")[0].toLowerCase() : language;
@@ -65,6 +73,28 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
     return () => reset();
   }, [setText, reset, room, roomLang, language, setLanguage]);
 
+  useEffect(() => {
+    setJoinUrl(typeof window !== 'undefined' ? window.location.href : "");
+    const savedName = localStorage.getItem("typeRaceNickname");
+    if (savedName && !playerName) setPlayerName(savedName);
+  }, [playerName, setPlayerName]);
+
+  const handleJoin = () => {
+    if (nameInput.trim()) {
+      setPlayerName(nameInput.trim());
+      localStorage.setItem("typeRaceNickname", nameInput.trim());
+    }
+  };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   // Realtime Setup
   useEffect(() => {
     if (!playerName) return; // Wait for name
@@ -83,7 +113,6 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
         
         setPlayers(prev => {
           const playerList: PlayerState[] = [];
-          let index = 0;
           for (const [key, presences] of Object.entries(state)) {
             const p = presences[0] as any;
             const existing = prev.find(ep => ep.name === key);
@@ -95,10 +124,18 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
               // Preserve broadcasted progress/wpm if they are higher, because presence data is often stale during race
               progress: existing && existing.progress > (p.progress || 0) ? existing.progress : (p.progress || 0),
               wpm: existing && existing.progress > 0 ? existing.wpm : (p.wpm || 0),
-              isHost: index === 0
+              joined_at: p.joined_at || Date.now(),
+              isSpectator: p.isSpectator || false
             });
-            index++;
           }
+          
+          // Sort by join time so the first person who joined is always the host
+          playerList.sort((a, b) => (a.joined_at || 0) - (b.joined_at || 0));
+          
+          playerList.forEach((p, index) => {
+            p.isHost = index === 0;
+          });
+          
           return playerList;
         });
       })
@@ -115,7 +152,9 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
           await roomChannel.track({
             status: "waiting",
             progress: 0,
-            wpm: 0
+            wpm: 0,
+            joined_at: Date.now(),
+            isSpectator: isSpectator
           });
         }
       });
@@ -129,7 +168,7 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
 
   // Sync my progress to others periodically
   useEffect(() => {
-    if (phase === "race" && status === "running" && channel) {
+    if (!isSpectator && phase === "race" && status === "running" && channel) {
       const syncInterval = setInterval(() => {
         const roomText = getRoomText(room, roomLang);
         const currentInput = inputRef.current;
@@ -162,7 +201,7 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
 
   // Handle Finish
   useEffect(() => {
-    if (status === "finished" && channel && myPlayerStatus.current !== "finished") {
+    if (!isSpectator && status === "finished" && channel && myPlayerStatus.current !== "finished") {
       myPlayerStatus.current = "finished";
       channel.track({
         status: "finished",
@@ -227,54 +266,112 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
     }
   };
 
+  const toggleSpectator = async () => {
+    const newVal = !isSpectator;
+    setIsSpectator(newVal);
+    if (channel) {
+      const state = channel.presenceState();
+      const myState = state[playerName]?.[0] as any;
+      if (myState) {
+        await channel.track({
+          ...myState,
+          isSpectator: newVal
+        });
+      }
+    }
+  };
+
   const myPlayer = players.find(p => p.name === playerName);
   const isHost = myPlayer?.isHost;
 
   return (
     <div className="flex min-h-screen flex-col items-center py-24 px-4 bg-background">
       <div className="w-full max-w-4xl flex justify-between items-center mb-8">
-        <Link href="/battle" className="text-muted-foreground hover:text-primary transition-colors">
+        <button onClick={() => { if(window.confirm("Are you sure you want to leave the room?")) router.push("/battle") }} className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 font-medium">
           &larr; Leave Room
-        </Link>
+        </button>
         <h1 className="text-2xl font-bold tracking-tight">Room: <span className="text-primary">{room}</span></h1>
       </div>
 
-      {phase === "lobby" && (
-        <div className="w-full max-w-2xl bg-card border rounded-xl shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold">Lobby ({players.length}/10 Players)</h2>
-            <p className="text-sm text-muted-foreground mt-1">Waiting for players to join and get ready...</p>
+      {phase === "lobby" && !playerName && (
+        <div className="w-full max-w-md bg-card border rounded-2xl shadow-xl overflow-hidden p-8 text-center">
+          <h2 className="text-2xl font-bold mb-4">Join Room</h2>
+          <p className="text-muted-foreground mb-6">Enter your nickname to join room <strong className="text-primary">{room}</strong></p>
+          <div className="flex flex-col gap-4">
+            <input 
+              type="text" 
+              placeholder="Your Nickname" 
+              className="px-4 py-3 rounded-xl border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary w-full text-center text-lg font-semibold"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+            />
+            <button 
+              onClick={handleJoin}
+              className="px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition shadow-md w-full"
+            >
+              Join
+            </button>
           </div>
-          
-          <ul className="divide-y divide-border">
-            {players.length === 0 && <li className="p-4 text-center text-muted-foreground">Connecting to server...</li>}
-            {players.map((player) => (
-              <li key={player.name} className="p-4 flex justify-between items-center bg-card">
-                <span className="font-medium text-lg flex items-center gap-2">
-                  {player.name}
-                  {player.isHost && <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">HOST</span>}
-                </span>
-                <span className={`text-sm font-bold px-3 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`}>
-                  ONLINE
-                </span>
-              </li>
-            ))}
-          </ul>
-          
-          <div className="p-6 bg-muted/30">
-            {isHost ? (
-              <button 
-                onClick={handleHostStart}
-                disabled={players.length < 1}
-                className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition shadow-md text-lg disabled:opacity-50"
-              >
-                Start Race
-              </button>
-            ) : (
-              <div className="w-full py-4 bg-muted text-muted-foreground font-bold rounded-xl text-center text-lg border border-dashed">
-                Waiting for host to start...
-              </div>
-            )}
+        </div>
+      )}
+
+      {phase === "lobby" && playerName && (
+        <div className="w-full max-w-4xl bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col md:flex-row">
+          <div className="flex-1 flex flex-col border-b md:border-b-0 md:border-r">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-bold">Lobby ({players.length}/10 Players)</h2>
+              <p className="text-sm text-muted-foreground mt-1">Waiting for players to join and get ready...</p>
+            </div>
+            
+            <ul className="divide-y divide-border overflow-y-auto max-h-[400px] flex-1">
+              {players.length === 0 && <li className="p-4 text-center text-muted-foreground">Connecting to server...</li>}
+              {players.map((player) => (
+                <li key={player.name} className="p-4 flex justify-between items-center bg-card">
+                  <span className="font-medium text-lg flex items-center gap-2">
+                    {player.name}
+                    {player.isHost && <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">HOST</span>}
+                    {player.isSpectator && <span className="text-xs bg-muted text-muted-foreground border px-2 py-1 rounded-full">SPECTATOR</span>}
+                  </span>
+                  <span className={`text-sm font-bold px-3 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400`}>
+                    ONLINE
+                  </span>
+                </li>
+              ))}
+            </ul>
+            
+            <div className="p-6 bg-muted/30 border-t flex flex-col gap-4">
+              {isHost && (
+                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer mb-2">
+                  <input type="checkbox" checked={isSpectator} onChange={toggleSpectator} className="w-4 h-4 rounded text-primary focus:ring-primary" />
+                  Join as Spectator (Monitor only, won't participate in race)
+                </label>
+              )}
+              {isHost ? (
+                <button 
+                  onClick={handleHostStart}
+                  disabled={players.filter(p => !p.isSpectator).length < 1}
+                  className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition shadow-md text-lg disabled:opacity-50"
+                >
+                  Start Race
+                </button>
+              ) : (
+                <div className="w-full py-4 bg-muted text-muted-foreground font-bold rounded-xl text-center text-lg border border-dashed">
+                  Waiting for host to start...
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="w-full md:w-72 bg-muted/10 p-8 flex flex-col items-center justify-center">
+            <p className="text-sm font-bold text-muted-foreground mb-4 text-center uppercase tracking-wider">Scan to Join</p>
+            <div className="bg-white p-3 rounded-2xl shadow-sm border">
+              {joinUrl && <QRCode value={joinUrl} size={180} />}
+            </div>
+            <div className="mt-6 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Or share this link:</p>
+              <p className="text-xs font-medium text-foreground break-all select-all">{joinUrl}</p>
+            </div>
           </div>
         </div>
       )}
@@ -285,7 +382,7 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
           <div className="w-full bg-card p-6 rounded-xl border shadow-sm">
             <h3 className="font-bold mb-4">LIVE PROGRESS</h3>
             <div className="flex flex-col gap-4">
-              {players.map(p => (
+              {players.filter(p => !p.isSpectator).map(p => (
                 <div key={p.name} className="flex items-center gap-4">
                   <div className="w-32 font-medium truncate flex items-center gap-2">
                     {p.name} {p.status === "finished" && "🏁"}
@@ -303,7 +400,14 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
             </div>
           </div>
 
-          <TypingEngine />
+          {!isSpectator && <TypingEngine />}
+          
+          {isSpectator && (
+            <div className="w-full p-8 text-center text-muted-foreground border-2 border-dashed rounded-xl mt-8">
+              <p className="text-xl font-bold">You are spectating</p>
+              <p>Monitor the progress bars above to see the race!</p>
+            </div>
+          )}
           
           {status === "countdown" && (
             <div className="fixed inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -323,7 +427,7 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
             <div className="w-full mx-auto bg-background border rounded-2xl shadow-sm overflow-hidden mb-8">
               <div className="p-4 border-b bg-muted/50 font-bold text-left text-muted-foreground">Leaderboard</div>
               <ul className="divide-y divide-border text-left">
-                {[...players].sort((a, b) => b.wpm - a.wpm).map((p, index) => (
+                {[...players].filter(p => !p.isSpectator).sort((a, b) => b.wpm - a.wpm).map((p, index) => (
                   <li key={p.name} className={`p-4 flex justify-between items-center ${p.name === playerName ? "bg-primary/10" : ""}`}>
                     <span className="font-medium text-lg">{index + 1}. {p.name} {p.name === playerName && "(You)"}</span>
                     <span className={`font-extrabold text-lg ${p.status === "finished" ? "text-primary" : "text-muted-foreground"}`}>
