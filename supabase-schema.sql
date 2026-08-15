@@ -34,6 +34,7 @@ CREATE TABLE public.race_players (
   accuracy NUMERIC(5,2) DEFAULT 0.0,
   errors INTEGER DEFAULT 0,
   time_ms INTEGER DEFAULT 0,
+  language TEXT DEFAULT 'id',
   rank INTEGER
 );
 
@@ -54,6 +55,9 @@ ON public.race_sessions FOR SELECT USING (true);
 -- Semua orang bisa membuat room baru
 CREATE POLICY "Anyone can create race sessions." 
 ON public.race_sessions FOR INSERT WITH CHECK (true);
+-- Semua orang bisa mengupdate room (untuk mengubah status)
+CREATE POLICY "Anyone can update race sessions." 
+ON public.race_sessions FOR UPDATE USING (true);
 
 -- Semua orang bisa melihat data pemain (untuk keperluan Hall of Fame)
 CREATE POLICY "Race players are viewable by everyone." 
