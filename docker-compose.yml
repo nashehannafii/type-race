@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   type-race:
@@ -8,7 +8,7 @@ services:
       args:
         # Pass environment variables from the host's .env file into the build process
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
     container_name: type-race-app
     ports:
       # Map host port 3100 to container port 3000
