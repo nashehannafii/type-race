@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  type-race:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Pass environment variables from the host's .env file into the build process
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: type-race-app
+    ports:
+      # Map host port 3100 to container port 3000
+      - "3100:3000"
+    env_file:
+      - .env
+    restart: unless-stopped

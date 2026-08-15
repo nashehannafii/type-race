@@ -187,56 +187,60 @@ export default function SoloRacePage() {
         )}
 
         {status === "finished" && (
-          <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-3xl font-bold mb-4 text-primary">RACE COMPLETE</h2>
-            
-            {checkingQualification ? (
-              <div className="mb-6 p-4 text-muted-foreground animate-pulse">
-                Checking leaderboard eligibility...
-              </div>
-            ) : qualifiesForHoF ? (
-              !isSubmitted ? (
-                <div className="mb-6 bg-primary/10 border-primary/20 p-4 rounded-lg border max-w-sm mx-auto">
-                  <p className="mb-2 font-bold text-primary">🎉 You beat the top 20!</p>
-                  <p className="mb-4 text-sm">Do you want to save your result to the Hall of Fame?</p>
-                  <button 
-                    onClick={handleSubmitScore}
-                    disabled={isSubmitting}
-                    className="px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-full hover:bg-primary/90 transition shadow-md w-full disabled:opacity-50"
-                  >
-                    {isSubmitting ? "Saving..." : "Yes, Submit Score"}
-                  </button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg bg-card border rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in-95 fade-in duration-300">
+              <h2 className="text-3xl font-extrabold mb-6 text-primary tracking-tight">RACE COMPLETE</h2>
+              
+              {checkingQualification ? (
+                <div className="mb-8 p-4 text-muted-foreground animate-pulse font-medium">
+                  Checking leaderboard eligibility...
                 </div>
+              ) : qualifiesForHoF ? (
+                !isSubmitted ? (
+                  <div className="mb-8 bg-primary/10 border-primary/20 p-6 rounded-2xl border">
+                    <p className="mb-3 font-extrabold text-primary text-2xl">🎉 You beat the top 20!</p>
+                    <p className="mb-6 text-muted-foreground font-medium">Do you want to save your result to the Hall of Fame?</p>
+                    <button 
+                      onClick={handleSubmitScore}
+                      disabled={isSubmitting}
+                      className="px-6 py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition shadow-md w-full disabled:opacity-50 text-lg"
+                    >
+                      {isSubmitting ? "Saving..." : "Yes, Submit Score"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mb-8 p-6 bg-green-500/10 border border-green-500/20 rounded-2xl">
+                    <p className="text-green-600 font-bold dark:text-green-400 text-xl">✓ Score submitted successfully!</p>
+                  </div>
+                )
               ) : (
-                <p className="mb-6 text-green-600 font-bold dark:text-green-400">✓ Score submitted successfully!</p>
-              )
-            ) : (
-              <div className="mb-6 bg-muted/50 p-4 rounded-lg border max-w-sm mx-auto">
-                <p className="mb-2 font-semibold">Good effort!</p>
-                <p className="text-sm text-muted-foreground">However, your score of {wpm} WPM did not make it to the top 20. Try again to reach the Hall of Fame!</p>
-              </div>
-            )}
+                <div className="mb-8 bg-muted/50 p-6 rounded-2xl border">
+                  <p className="mb-2 font-bold text-xl">Good effort!</p>
+                  <p className="text-muted-foreground font-medium leading-relaxed">However, your score of <span className="font-bold text-foreground text-lg">{wpm} WPM</span> did not make it to the top 20. Try again to reach the Hall of Fame!</p>
+                </div>
+              )}
 
-            <div className="flex gap-4 justify-center">
-              <button 
-                onClick={() => { 
-                  const DUMMY_TEXTS = language === "ar" ? DUMMY_TEXTS_AR : language === "en" ? DUMMY_TEXTS_EN : DUMMY_TEXTS_ID;
-                  const randomText = DUMMY_TEXTS[Math.floor(Math.random() * DUMMY_TEXTS.length)];
-                  reset(); 
-                  setText(randomText); 
-                  setIsSubmitted(false); 
-                  handleStart(); 
-                }}
-                className="px-6 py-2 bg-secondary text-secondary-foreground font-semibold rounded-full hover:bg-secondary/90 transition shadow"
-              >
-                Race Again
-              </button>
-              <Link 
-                href="/"
-                className="px-6 py-2 bg-muted text-muted-foreground font-semibold rounded-full hover:bg-muted/80 transition shadow border"
-              >
-                Home
-              </Link>
+              <div className="flex gap-4 justify-center">
+                <button 
+                  onClick={() => { 
+                    const DUMMY_TEXTS = language === "ar" ? DUMMY_TEXTS_AR : language === "en" ? DUMMY_TEXTS_EN : DUMMY_TEXTS_ID;
+                    const randomText = DUMMY_TEXTS[Math.floor(Math.random() * DUMMY_TEXTS.length)];
+                    reset(); 
+                    setText(randomText); 
+                    setIsSubmitted(false); 
+                    handleStart(); 
+                  }}
+                  className="px-6 py-4 bg-secondary text-secondary-foreground font-bold rounded-xl hover:bg-secondary/90 transition shadow flex-1"
+                >
+                  Race Again
+                </button>
+                <Link 
+                  href="/"
+                  className="px-6 py-4 bg-muted text-muted-foreground font-bold rounded-xl hover:bg-muted/80 transition shadow border flex-1 flex items-center justify-center"
+                >
+                  Home
+                </Link>
+              </div>
             </div>
           </div>
         )}

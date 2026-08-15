@@ -316,30 +316,32 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
       )}
 
       {phase === "result" && (
-        <div className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500 mt-12 w-full max-w-4xl mx-auto">
-          <h2 className="text-4xl font-extrabold mb-8 text-primary">FINAL RESULT</h2>
-          
-          <div className="w-full max-w-md mx-auto bg-card border rounded-xl shadow-sm overflow-hidden mb-8">
-            <div className="p-4 border-b bg-muted/50 font-bold text-left">Ranking</div>
-            <ul className="divide-y divide-border text-left">
-              {[...players].sort((a, b) => b.wpm - a.wpm).map((p, index) => (
-                <li key={p.name} className={`p-4 flex justify-between ${p.name === playerName ? "bg-primary/10" : ""}`}>
-                  <span>{index + 1}. {p.name}</span>
-                  <span className={`font-bold ${p.status === "finished" ? "text-primary" : "text-muted-foreground"}`}>
-                    {p.status === "finished" ? `${p.wpm} WPM` : `${p.wpm} WPM (DNF)`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          
-          <div className="flex gap-4 justify-center">
-            <Link 
-              href="/battle"
-              className="px-6 py-2 bg-secondary text-secondary-foreground font-semibold rounded-full hover:bg-secondary/80 transition shadow border"
-            >
-              Leave Room
-            </Link>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-card border rounded-3xl shadow-2xl p-8 text-center animate-in zoom-in-95 fade-in duration-300">
+            <h2 className="text-4xl font-extrabold mb-8 text-primary tracking-tight">FINAL RESULT</h2>
+            
+            <div className="w-full mx-auto bg-background border rounded-2xl shadow-sm overflow-hidden mb-8">
+              <div className="p-4 border-b bg-muted/50 font-bold text-left text-muted-foreground">Leaderboard</div>
+              <ul className="divide-y divide-border text-left">
+                {[...players].sort((a, b) => b.wpm - a.wpm).map((p, index) => (
+                  <li key={p.name} className={`p-4 flex justify-between items-center ${p.name === playerName ? "bg-primary/10" : ""}`}>
+                    <span className="font-medium text-lg">{index + 1}. {p.name} {p.name === playerName && "(You)"}</span>
+                    <span className={`font-extrabold text-lg ${p.status === "finished" ? "text-primary" : "text-muted-foreground"}`}>
+                      {p.status === "finished" ? `${p.wpm} WPM` : `${p.wpm} WPM (DNF)`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="flex gap-4 justify-center">
+              <Link 
+                href="/battle"
+                className="px-8 py-4 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition shadow-md w-full text-lg flex items-center justify-center"
+              >
+                Leave Room
+              </Link>
+            </div>
           </div>
         </div>
       )}
