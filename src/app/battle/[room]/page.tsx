@@ -46,6 +46,7 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
   const [countdown, setCountdown] = useState(3);
   const [isSpectator, setIsSpectator] = useState(false);
   const myPlayerStatus = useRef<PlayerState["status"]>("waiting");
+  const hasRaceStarted = useRef(false);
   const router = useRouter();
   
   // Extract room language from prefix (e.g. ID-ABCDE)
@@ -112,35 +113,51 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
         const state = roomChannel.presenceState();
         
         setPlayers(prev => {
-          const playerList: PlayerState[] = [];
-          for (const [key, presences] of Object.entries(state)) {
-            const p = presences[0] as any;
-            const existing = prev.find(ep => ep.name === key);
+          if (hasRaceStarted.current) {
+            const playerList = [...prev];
+            for (const [key, presences] of Object.entries(state)) {
+              const p = presences[0] as any;
+              const existingIndex = playerList.findIndex(ep => ep.name === key);
+              if (existingIndex !== -1) {
+                const existing = playerList[existingIndex];
+                playerList[existingIndex] = {
+                  ...existing,
+                  status: p.status === "finished" ? "finished" : existing.status, 
+                  progress: existing.progress > (p.progress || 0) ? existing.progress : (p.progress || 0),
+                  wpm: existing.progress > 0 ? existing.wpm : (p.wpm || 0),
+                };
+              }
+            }
+            return playerList;
+          } else {
+            const playerList: PlayerState[] = [];
+            for (const [key, presences] of Object.entries(state)) {
+              const p = presences[0] as any;
+              const existing = prev.find(ep => ep.name === key);
+              
+              playerList.push({
+                presence_ref: p.presence_ref,
+                name: key,
+                status: p.status, 
+                progress: existing && existing.progress > (p.progress || 0) ? existing.progress : (p.progress || 0),
+                wpm: existing && existing.progress > 0 ? existing.wpm : (p.wpm || 0),
+                joined_at: p.joined_at || Date.now(),
+                isSpectator: p.isSpectator || false
+              });
+            }
             
-            playerList.push({
-              presence_ref: p.presence_ref,
-              name: key,
-              status: p.status, // We trust presence for status (waiting/finished)
-              // Preserve broadcasted progress/wpm if they are higher, because presence data is often stale during race
-              progress: existing && existing.progress > (p.progress || 0) ? existing.progress : (p.progress || 0),
-              wpm: existing && existing.progress > 0 ? existing.wpm : (p.wpm || 0),
-              joined_at: p.joined_at || Date.now(),
-              isSpectator: p.isSpectator || false
-            });
+            playerList.sort((a, b) => (a.joined_at || 0) - (b.joined_at || 0));
+            playerList.forEach((p, index) => { p.isHost = index === 0; });
+            return playerList;
           }
-          
-          // Sort by join time so the first person who joined is always the host
-          playerList.sort((a, b) => (a.joined_at || 0) - (b.joined_at || 0));
-          
-          playerList.forEach((p, index) => {
-            p.isHost = index === 0;
-          });
-          
-          return playerList;
         });
       })
       .on("broadcast", { event: "start_race" }, () => {
+        hasRaceStarted.current = true;
         handleRemoteStart();
+      })
+      .on("broadcast", { event: "force_end" }, () => {
+        setPhase("result");
       })
       .on("broadcast", { event: "progress" }, ({ payload }) => {
         setPlayers(prev => prev.map(p => 
@@ -263,6 +280,20 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
       });
       // Start locally too since broadcast might not echo to sender depending on config
       handleRemoteStart();
+    }
+  };
+
+  const handleForceEndRace = async () => {
+    if (channel) {
+      const supabase = createClient();
+      await supabase.from("race_sessions").update({ status: "finished" }).eq("room_code", room);
+      
+      channel.send({
+        type: "broadcast",
+        event: "force_end",
+        payload: {}
+      });
+      setPhase("result");
     }
   };
 
@@ -399,6 +430,15 @@ export default function BattleRoomPage({ params }: { params: Promise<{ room: str
               ))}
             </div>
           </div>
+          
+          {isHost && status === "running" && (
+            <button 
+              onClick={handleForceEndRace}
+              className="px-6 py-3 bg-destructive text-destructive-foreground font-bold rounded-xl hover:bg-destructive/90 transition shadow-md w-full max-w-sm mx-auto flex items-center justify-center gap-2 mt-2"
+            >
+              <span className="text-xl">🛑</span> End Race
+            </button>
+          )}
 
           {!isSpectator && <TypingEngine />}
           
