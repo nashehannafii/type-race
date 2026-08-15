@@ -52,9 +52,9 @@ export default function SoloRacePage() {
       } else {
         setIsSubmitted(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("An unexpected error occurred.");
+      alert("System error: " + (err.message || "Could not connect to database. Make sure environment variables are set correctly during Vercel Build."));
     } finally {
       setIsSubmitting(false);
     }
